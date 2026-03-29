@@ -250,6 +250,33 @@
     .cal-day { padding: 4px 2px; min-height: 36px; }
     .cal-day .day-num { font-size: 11px; }
   }
+
+  /* V3: Half Day */
+  .att-btn.selected-Half\ Day { background: #FFF8EC; border-color: #C4A35A; color: #7A5C00; }
+  .pill-half { background: #FFF8EC; color: #7A5C00; border: 1px solid #E3C383; }
+  .half-day-btn { font-size: 11px; font-weight: 700; color: #7A5C00; background: #FFF8EC; border: 1px solid #E3C383; border-radius: 10px; padding: 2px 8px; cursor: pointer; font-family: var(--font-body); margin-left: 6px; vertical-align: middle; }
+  .half-day-btn:hover { background: #F0DBA8; }
+
+  /* V3: Team Calendar (admin) */
+  .team-cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; }
+  .team-cal-day { border-radius: 8px; padding: 8px 6px; min-height: 72px; font-size: 12px; border: 1px solid var(--cream-border); background: var(--white); cursor: pointer; transition: box-shadow .15s; }
+  .team-cal-day:hover { box-shadow: var(--shadow); }
+  .team-cal-day.empty { background: transparent; border-color: transparent; cursor: default; }
+  .team-cal-day.weekend { background: #FAF5EE; }
+  .team-cal-day.today { box-shadow: 0 0 0 2px var(--maroon); }
+  .team-cal-day .tc-date { font-size: 13px; font-weight: 700; color: var(--text); margin-bottom: 5px; display: block; }
+  .team-cal-day.weekend .tc-date { color: var(--text-muted); }
+  .tc-bars { display: flex; flex-direction: column; gap: 2px; }
+  .tc-bar { font-size: 10px; font-weight: 600; padding: 1px 5px; border-radius: 3px; display: flex; align-items: center; gap: 3px; }
+  .tc-bar.present { background: #EDFBF3; color: #1A6644; }
+  .tc-bar.wfh     { background: #EDF2FF; color: #2244AA; }
+  .tc-bar.leave   { background: #FFFBEB; color: #7A5C00; }
+  .tc-bar.absent  { background: #FFF0F0; color: #8B1A1A; }
+  .tc-bar.half    { background: #FFF8EC; color: #7A5C00; }
+  .tc-holiday-label { font-size: 9px; font-weight: 700; color: var(--maroon); background: rgba(72,10,1,.07); border-radius: 3px; padding: 1px 4px; margin-top: 3px; display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+  /* V3: Correction modal */
+  .modal-sm { max-width: 360px; }
 </style>
 </head>
 <body>
@@ -278,6 +305,41 @@
     <div class="modal-btns">
       <button class="btn btn-outline" onclick="closeOHModal()">I'm Working Today</button>
       <button class="btn btn-primary" onclick="confirmTakeOH()">🌟 Take the Holiday</button>
+    </div>
+  </div>
+</div>
+
+<!-- V3: ATTENDANCE CORRECTION MODAL -->
+<div class="modal-overlay" id="correction-modal">
+  <div class="modal modal-sm">
+    <h3>✏️ Correct Attendance</h3>
+    <p id="correction-modal-info" style="margin-bottom:16px"></p>
+    <div class="form-group" style="margin-bottom:18px">
+      <label>Status</label>
+      <select id="correction-status">
+        <option value="Present">Present</option>
+        <option value="WFH">WFH</option>
+        <option value="Half Day">Half Day</option>
+        <option value="Absent">Absent</option>
+        <option value="On Leave">On Leave</option>
+        <option value="Optional Holiday">Optional Holiday</option>
+      </select>
+    </div>
+    <div id="correction-alert" class="alert"></div>
+    <div class="modal-btns">
+      <button class="btn btn-outline" onclick="closeCorrectionModal()">Cancel</button>
+      <button class="btn btn-primary" onclick="submitCorrection()">Save Correction</button>
+    </div>
+  </div>
+</div>
+
+<!-- V3: TEAM CALENDAR DAY DETAIL MODAL -->
+<div class="modal-overlay" id="cal-day-modal">
+  <div class="modal">
+    <h3 id="cal-day-modal-title">—</h3>
+    <div id="cal-day-modal-body" style="max-height:320px;overflow-y:auto"></div>
+    <div class="modal-btns" style="margin-top:20px">
+      <button class="btn btn-outline" onclick="document.getElementById('cal-day-modal').classList.remove('open')">Close</button>
     </div>
   </div>
 </div>
@@ -325,8 +387,8 @@
         <div class="card-header"><h3>Attendance History</h3><p>Your recent attendance log</p></div>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Date</th><th>Status</th><th>Marked At</th></tr></thead>
-            <tbody id="my-att-tbody"><tr class="loading-row"><td colspan="3"><div class="spinner"></div></td></tr></tbody>
+            <thead><tr><th>Date</th><th>Status</th><th>Marked At</th><th></th></tr></thead>
+            <tbody id="my-att-tbody"><tr class="loading-row"><td colspan="4"><div class="spinner"></div></td></tr></tbody>
           </table>
         </div>
       </div>
@@ -484,8 +546,8 @@
         </div>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Employee</th><th>Date</th><th>Status</th><th>Marked At</th></tr></thead>
-            <tbody id="all-att-tbody"><tr class="loading-row"><td colspan="4"><div class="spinner"></div></td></tr></tbody>
+            <thead><tr><th>Employee</th><th>Date</th><th>Status</th><th>Marked At</th><th></th></tr></thead>
+            <tbody id="all-att-tbody"><tr class="loading-row"><td colspan="5"><div class="spinner"></div></td></tr></tbody>
           </table>
         </div>
       </div>
@@ -625,6 +687,36 @@
       </div>
     </div>
 
+    <!-- ═══ V3: TEAM CALENDAR (admin) ═══ -->
+    <div class="tab-panel" id="panel-team-calendar">
+      <div class="page-header">
+        <h2>Team Calendar</h2>
+        <p>Monthly attendance overview for the whole team</p>
+      </div>
+      <div class="card">
+        <div class="cal-header">
+          <select id="tcal-month" onchange="loadTeamCalendar()" style="padding:8px 12px;border:1px solid var(--cream-border);border-radius:var(--radius-sm);font-family:var(--font-body);font-size:13px;">
+            <option value="1">January</option><option value="2">February</option><option value="3">March</option>
+            <option value="4">April</option><option value="5">May</option><option value="6">June</option>
+            <option value="7">July</option><option value="8">August</option><option value="9">September</option>
+            <option value="10">October</option><option value="11">November</option><option value="12">December</option>
+          </select>
+          <select id="tcal-year" onchange="loadTeamCalendar()" style="padding:8px 12px;border:1px solid var(--cream-border);border-radius:var(--radius-sm);font-family:var(--font-body);font-size:13px;"></select>
+          <span style="font-size:12px;color:var(--text-muted);margin-left:6px">· Click any date for details</span>
+        </div>
+        <div class="team-cal-grid" id="team-cal-grid">
+          <div style="grid-column:1/-1;text-align:center;padding:32px;color:var(--text-muted)"><div class="spinner"></div></div>
+        </div>
+        <div style="display:flex;gap:14px;flex-wrap:wrap;margin-top:14px;font-size:11px;color:var(--text-muted)">
+          <span><i style="display:inline-block;width:10px;height:10px;border-radius:3px;background:#EDFBF3;border:1px solid #B7E8CB;margin-right:4px"></i>Present</span>
+          <span><i style="display:inline-block;width:10px;height:10px;border-radius:3px;background:#EDF2FF;border:1px solid #BFD0F5;margin-right:4px"></i>WFH</span>
+          <span><i style="display:inline-block;width:10px;height:10px;border-radius:3px;background:#FFF8EC;border:1px solid #E3C383;margin-right:4px"></i>Half Day</span>
+          <span><i style="display:inline-block;width:10px;height:10px;border-radius:3px;background:#FFFBEB;border:1px solid #F0DBA8;margin-right:4px"></i>On Leave</span>
+          <span><i style="display:inline-block;width:10px;height:10px;border-radius:3px;background:#FFF0F0;border:1px solid #F5C0C0;margin-right:4px"></i>Absent</span>
+        </div>
+      </div>
+    </div>
+
   </div><!-- /content -->
 </div><!-- /app -->
 
@@ -711,7 +803,7 @@ function initApp() {
   // Populate year selectors
   const now = new Date();
   const curY = now.getFullYear();
-  ["sum-year","adm-sum-year"].forEach(id => {
+  ["sum-year","adm-sum-year","tcal-year"].forEach(id => {
     const sel = document.getElementById(id);
     if (!sel) return;
     sel.innerHTML = "";
@@ -726,6 +818,8 @@ function initApp() {
   document.getElementById("sum-month").value = now.getMonth() + 1;
   const admMon = document.getElementById("adm-sum-month");
   if (admMon) admMon.value = now.getMonth() + 1;
+  const tcalMon = document.getElementById("tcal-month");
+  if (tcalMon) tcalMon.value = now.getMonth() + 1;
 
   const today = now.toISOString().split("T")[0];
   const lv = document.getElementById("lv-from");
@@ -763,6 +857,7 @@ const ADMIN_TABS = [
   { id:"holidays",             label:"📅 Holidays" },
   { id:"documents-admin",      label:"📁 Documents" },
   { id:"employees",            label:"👥 Employees" },
+  { id:"team-calendar",        label:"📅 Team Calendar" },
   { id:"attendance",           label:"📋 My Attendance" },
   { id:"leave",                label:"📝 My Leave" },
 ];
@@ -805,6 +900,7 @@ function loadTabData(id) {
     case "regularization-admin": loadAdminRegularizations();   break;
     case "documents-admin":      loadAdminDocuments();         break;
     case "employees":            loadEmployees();              break;
+    case "team-calendar":        loadTeamCalendar();           break;
   }
 }
 
@@ -903,18 +999,22 @@ function highlightAttBtn(status) {
 
 async function loadMyAttendance() {
   const tbody = document.getElementById("my-att-tbody");
-  tbody.innerHTML = '<tr class="loading-row"><td colspan="3"><div class="spinner"></div></td></tr>';
+  tbody.innerHTML = '<tr class="loading-row"><td colspan="4"><div class="spinner"></div></td></tr>';
   const data = await api({ action:"getAttendance", emp_id:currentUser.emp_id });
   if (!data.success || !data.records.length) {
-    tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;color:var(--text-muted);padding:24px">No attendance records yet.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--text-muted);padding:24px">No attendance records yet.</td></tr>';
     return;
   }
-  tbody.innerHTML = data.records.slice(0,30).map(r => `
-    <tr>
+  tbody.innerHTML = data.records.slice(0,30).map(r => {
+    const dateStr = String(r.date).split("T")[0];
+    const canHalfDay = (r.status === "Present" || r.status === "WFH");
+    return `<tr>
       <td>${fmtDate(r.date)}</td>
       <td>${statusPill(r.status)}${(r.status==="Present"||r.status==="WFH") ? lateBadge(r.marked_at) : ""}</td>
       <td>${fmtDateTime(r.marked_at)}</td>
-    </tr>`).join("");
+      <td>${canHalfDay ? `<button class="half-day-btn" onclick="markHalfDay('${dateStr}')">½ Half Day</button>` : ""}</td>
+    </tr>`;
+  }).join("");
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -1180,16 +1280,18 @@ function filterAttendance() {
 function renderAllAtt(records) {
   const tbody = document.getElementById("all-att-tbody");
   if (!records.length) {
-    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--text-muted);padding:24px">No records found.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:24px">No records found.</td></tr>';
     return;
   }
   tbody.innerHTML = records.map(r => {
     const showLate = (r.status==="Present"||r.status==="WFH") && isLate(r.marked_at);
+    const dateStr  = String(r.date).split("T")[0];
     return `<tr${showLate ? ' style="background:#FFFBF5"' : ''}>
       <td style="font-weight:600">${r.name}</td>
       <td>${fmtDate(r.date)}</td>
       <td>${statusPill(r.status)}${showLate ? lateBadge(r.marked_at) : ""}</td>
       <td>${fmtDateTime(r.marked_at)}</td>
+      <td><button class="btn btn-outline btn-sm" style="padding:4px 10px;font-size:11px" onclick="openCorrectionModal('${r.emp_id}','${escHtml(r.name)}','${dateStr}','${r.status}')">✏️</button></td>
     </tr>`;
   }).join("");
 }
@@ -1425,15 +1527,18 @@ function fmtDate(d) {
 
 function fmtDateTime(d) {
   if (!d) return "—";
-  const s = String(d).replace("Regularized:","");
+  const raw = String(d);
+  const isReg   = raw.startsWith("Regularized:");
+  const isAdmin = raw.startsWith("Admin-corrected:");
+  const s    = raw.replace("Regularized:","").replace("Admin-corrected:","");
   const date = new Date(s);
   if (isNaN(date)) return "—";
-  const prefix = String(d).startsWith("Regularized:") ? "✏️ " : "";
+  const prefix = isAdmin ? "🛠️ " : isReg ? "✏️ " : "";
   return prefix + date.toLocaleString("en-IN", { day:"2-digit", month:"short", hour:"2-digit", minute:"2-digit" });
 }
 
 function statusPill(s) {
-  const map = { "Present":"pill-green","WFH":"pill-blue","Absent":"pill-red","On Leave":"pill-yellow","Optional Holiday":"pill-purple" };
+  const map = { "Present":"pill-green","WFH":"pill-blue","Absent":"pill-red","On Leave":"pill-yellow","Optional Holiday":"pill-purple","Half Day":"pill-half" };
   return `<span class="pill ${map[s]||"pill-gray"}">${s||"—"}</span>`;
 }
 
@@ -1469,6 +1574,148 @@ function isLate(marked_at) {
 
 function lateBadge(marked_at) {
   return isLate(marked_at) ? '<span class="late-badge">⏰ Late</span>' : "";
+}
+
+// ═══════════════════════════════════════════════════════════
+// V3: MARK HALF DAY — Employee
+// ═══════════════════════════════════════════════════════════
+async function markHalfDay(date) {
+  if (!confirm(`Mark ${fmtDate(date)} as Half Day?\nThis will deduct 0.5 from your Casual Leave (or Sick Leave / Comp Off if CL is exhausted).`)) return;
+  const data = await api({ action:"markHalfDay", emp_id:currentUser.emp_id, date, email:currentUser.email });
+  if (data.success) {
+    alert("✅ " + data.message);
+    loadMyAttendance();
+    loadMyBalance();
+  } else {
+    alert("❌ " + (data.error || "Could not mark half day."));
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// V3: TEAM CALENDAR — Admin
+// ═══════════════════════════════════════════════════════════
+async function loadTeamCalendar() {
+  const month = document.getElementById("tcal-month").value;
+  const year  = document.getElementById("tcal-year").value;
+  const grid  = document.getElementById("team-cal-grid");
+  grid.innerHTML = '<div style="grid-column:1/-1;text-align:center;padding:32px;color:var(--text-muted)"><div class="spinner"></div></div>';
+
+  const [tcData, hData] = await Promise.all([
+    api({ action:"getTeamCalendar", month, year, email:currentUser.email }),
+    holidayList.length ? Promise.resolve({ success:true, holidays:holidayList }) : api({ action:"getHolidays" })
+  ]);
+  if (hData.success) holidayList = hData.holidays || [];
+
+  if (!tcData.success) {
+    grid.innerHTML = `<div style="grid-column:1/-1;text-align:center;padding:24px;color:var(--text-muted)">Could not load team calendar.</div>`;
+    return;
+  }
+
+  const dateMap = tcData.dateMap || {};
+  const today   = new Date().toISOString().split("T")[0];
+  const holMap  = {};
+  holidayList.forEach(h => { const hd = h.date ? h.date.toString().split("T")[0] : ""; if (hd) holMap[hd] = h; });
+
+  const m = parseInt(month), y = parseInt(year);
+  const firstDay    = new Date(y, m - 1, 1).getDay();
+  const daysInMonth = new Date(y, m, 0).getDate();
+  const dayNames    = ["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+
+  let html = dayNames.map(d => `<div style="text-align:center;font-size:11px;font-weight:700;color:var(--text-muted);padding:4px 2px;letter-spacing:.5px">${d}</div>`).join("");
+
+  for (let i = 0; i < firstDay; i++) html += `<div class="team-cal-day empty"></div>`;
+
+  for (let d = 1; d <= daysInMonth; d++) {
+    const dateStr = `${y}-${String(m).padStart(2,"0")}-${String(d).padStart(2,"0")}`;
+    const dow     = new Date(y, m-1, d).getDay();
+    const isWeekend = dow === 0 || dow === 6;
+    const hol     = holMap[dateStr];
+    const isToday = dateStr === today;
+    const info    = dateMap[dateStr];
+
+    let cls = "team-cal-day";
+    if (isWeekend) cls += " weekend";
+    if (isToday)   cls += " today";
+    if (isWeekend) cls += " empty"; // make weekends non-interactive
+
+    let bars = "";
+    if (info && info.total > 0) {
+      if (info.present  > 0) bars += `<div class="tc-bar present">✅ ${info.present}</div>`;
+      if (info.wfh      > 0) bars += `<div class="tc-bar wfh">🏠 ${info.wfh}</div>`;
+      if (info.halfDay  > 0) bars += `<div class="tc-bar half">½ ${info.halfDay}</div>`;
+      if (info.onLeave  > 0) bars += `<div class="tc-bar leave">📝 ${info.onLeave}</div>`;
+      if (info.absent   > 0) bars += `<div class="tc-bar absent">❌ ${info.absent}</div>`;
+    }
+    const holLabel = (hol && !isWeekend) ? `<span class="tc-holiday-label">${hol.optional ? "⭐ " : "🎉 "}${escHtml(hol.occasion)}</span>` : "";
+
+    const employeesJson = info ? escHtml(JSON.stringify(info.employees || [])) : "[]";
+    const clickable = (info && info.total > 0) ? `onclick="showCalDayDetail('${dateStr}', '${employeesJson}')"` : "";
+
+    html += `<div class="${isWeekend ? "team-cal-day weekend" : cls}" ${isWeekend ? "" : clickable} style="${isWeekend ? "cursor:default" : ""}">
+      <span class="tc-date">${d}</span>
+      <div class="tc-bars">${bars}</div>
+      ${holLabel}
+    </div>`;
+  }
+
+  grid.innerHTML = html;
+}
+
+function showCalDayDetail(dateStr, employeesJsonEncoded) {
+  const employees = JSON.parse(employeesJsonEncoded.replace(/&quot;/g, '"').replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>'));
+  const modal = document.getElementById("cal-day-modal");
+  document.getElementById("cal-day-modal-title").textContent = "📅 " + fmtDate(dateStr);
+  const body = document.getElementById("cal-day-modal-body");
+
+  if (!employees.length) {
+    body.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:16px">No records for this date.</p>';
+  } else {
+    body.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:13px">
+      <thead><tr>
+        <th style="text-align:left;padding:8px 10px;border-bottom:2px solid var(--cream-border);font-size:11px;text-transform:uppercase;color:var(--text-muted)">Employee</th>
+        <th style="text-align:left;padding:8px 10px;border-bottom:2px solid var(--cream-border);font-size:11px;text-transform:uppercase;color:var(--text-muted)">Status</th>
+      </tr></thead>
+      <tbody>${employees.map(e => `
+        <tr>
+          <td style="padding:9px 10px;border-bottom:1px solid var(--cream-border);font-weight:600">${escHtml(e.name)}</td>
+          <td style="padding:9px 10px;border-bottom:1px solid var(--cream-border)">${statusPill(e.status)}</td>
+        </tr>`).join("")}
+      </tbody>
+    </table>`;
+  }
+  modal.classList.add("open");
+}
+
+// ═══════════════════════════════════════════════════════════
+// V3: ATTENDANCE CORRECTION — Admin
+// ═══════════════════════════════════════════════════════════
+let _correctionTarget = { emp_id:"", date:"" };
+
+function openCorrectionModal(emp_id, emp_name, date, currentStatus) {
+  _correctionTarget = { emp_id, date };
+  document.getElementById("correction-modal-info").textContent = `Editing attendance for ${emp_name} on ${fmtDate(date)}. Current status: ${currentStatus}`;
+  document.getElementById("correction-status").value = currentStatus || "Present";
+  const alertEl = document.getElementById("correction-alert");
+  alertEl.style.display = "none";
+  document.getElementById("correction-modal").classList.add("open");
+}
+
+function closeCorrectionModal() {
+  document.getElementById("correction-modal").classList.remove("open");
+}
+
+async function submitCorrection() {
+  const alertEl = document.getElementById("correction-alert");
+  const status  = document.getElementById("correction-status").value;
+  const { emp_id, date } = _correctionTarget;
+  if (!emp_id || !date) { showAlert(alertEl, "error", "Missing employee or date."); return; }
+  const data = await api({ action:"adminCorrectAttendance", emp_id, date, status, email:currentUser.email });
+  if (data.success) {
+    closeCorrectionModal();
+    loadAllAttendance();
+  } else {
+    showAlert(alertEl, "error", "❌ " + (data.error || "Could not save correction."));
+  }
 }
 </script>
 
