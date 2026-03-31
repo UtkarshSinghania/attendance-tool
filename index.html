@@ -484,12 +484,20 @@
         <p>Request correction for a missed or incorrect attendance record</p>
       </div>
       <div class="card">
-        <div class="card-header"><h3>Apply for Regularization</h3></div>
+        <div class="card-header"><h3>Apply for Regularization</h3><p>Request a correction for a missed or wrongly marked attendance day</p></div>
         <div id="regu-form-alert" class="alert"></div>
         <div class="form-grid">
           <div class="form-group"><label>Date to Regularize</label><input type="date" id="regu-date" /></div>
-          <div class="form-group"></div>
-          <div class="form-group form-full"><label>Reason</label><textarea id="regu-reason" placeholder="Explain why attendance needs to be corrected…"></textarea></div>
+          <div class="form-group">
+            <label>Requested Status</label>
+            <select id="regu-status">
+              <option value="Present">Present — I was in office</option>
+              <option value="WFH">WFH — I worked from home</option>
+              <option value="Half Day">Half Day — I worked half the day</option>
+              <option value="On Leave">On Leave — Mark as approved leave</option>
+            </select>
+          </div>
+          <div class="form-group form-full"><label>Reason</label><textarea id="regu-reason" placeholder="Briefly explain why this correction is needed…"></textarea></div>
         </div>
         <div style="margin-top:20px"><button class="btn btn-primary" onclick="submitRegularization()">📤 Submit Request</button></div>
       </div>
@@ -497,8 +505,8 @@
         <div class="card-header"><h3>My Regularization Requests</h3></div>
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Date</th><th>Reason</th><th>Status</th><th>Actioned By</th></tr></thead>
-            <tbody id="my-regu-tbody"><tr class="loading-row"><td colspan="4"><div class="spinner"></div></td></tr></tbody>
+            <thead><tr><th>Date</th><th>Requested</th><th>Reason</th><th>Status</th><th>Actioned By</th></tr></thead>
+            <tbody id="my-regu-tbody"><tr class="loading-row"><td colspan="5"><div class="spinner"></div></td></tr></tbody>
           </table>
         </div>
       </div>
@@ -629,8 +637,8 @@
       <div class="card">
         <div class="table-wrap">
           <table>
-            <thead><tr><th>Employee</th><th>Date</th><th>Reason</th><th>Action</th></tr></thead>
-            <tbody id="admin-regu-tbody"><tr class="loading-row"><td colspan="4"><div class="spinner"></div></td></tr></tbody>
+            <thead><tr><th>Employee</th><th>Date</th><th>Requested</th><th>Reason</th><th>Action</th></tr></thead>
+            <tbody id="admin-regu-tbody"><tr class="loading-row"><td colspan="5"><div class="spinner"></div></td></tr></tbody>
           </table>
         </div>
       </div>
@@ -1163,11 +1171,12 @@ async function loadMyLeaves() {
 // REGULARIZATION — EMPLOYEE
 // ═══════════════════════════════════════════════════════════
 async function submitRegularization() {
-  const alertEl = document.getElementById("regu-form-alert");
-  const date    = document.getElementById("regu-date").value;
-  const reason  = document.getElementById("regu-reason").value.trim();
+  const alertEl          = document.getElementById("regu-form-alert");
+  const date             = document.getElementById("regu-date").value;
+  const reason           = document.getElementById("regu-reason").value.trim();
+  const requested_status = document.getElementById("regu-status").value;
   if (!date || !reason) { showAlert(alertEl, "error", "Please select a date and provide a reason."); return; }
-  const data = await api({ action:"applyRegularization", emp_id:currentUser.emp_id, email:currentUser.email, date, reason });
+  const data = await api({ action:"applyRegularization", emp_id:currentUser.emp_id, email:currentUser.email, date, reason, requested_status });
   if (data.success) {
     showAlert(alertEl, "success", `✅ Regularization request submitted for ${fmtDate(data.date)}.`);
     document.getElementById("regu-date").value   = "";
@@ -1181,15 +1190,16 @@ async function submitRegularization() {
 async function loadMyRegularizations() {
   const tbody = document.getElementById("my-regu-tbody");
   if (!tbody) return;
-  tbody.innerHTML = '<tr class="loading-row"><td colspan="4"><div class="spinner"></div></td></tr>';
+  tbody.innerHTML = '<tr class="loading-row"><td colspan="5"><div class="spinner"></div></td></tr>';
   const data = await api({ action:"getMyRegularizations", emp_id:currentUser.emp_id });
   if (!data.success || !data.records.length) {
-    tbody.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--text-muted);padding:24px">No regularization requests found.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:24px">No regularization requests found.</td></tr>';
     return;
   }
   tbody.innerHTML = data.records.map(r => `
     <tr>
       <td>${fmtDate(r.date)}</td>
+      <td>${statusPill(r.requested_status || "Present")}</td>
       <td style="max-width:200px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${escHtml(r.reason)}">${escHtml(r.reason)}</td>
       <td>${leavePill(r.status)}</td>
       <td>${r.actioned_by || "—"}</td>
@@ -1430,7 +1440,8 @@ async function loadAdminRegularizations() {
     <tr>
       <td style="font-weight:600">${escHtml(r.name)}</td>
       <td>${fmtDate(r.date)}</td>
-      <td style="max-width:200px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${escHtml(r.reason)}">${escHtml(r.reason)}</td>
+      <td>${statusPill(r.requested_status || "Present")}</td>
+      <td style="max-width:180px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${escHtml(r.reason)}">${escHtml(r.reason)}</td>
       <td style="white-space:nowrap">
         <button class="btn btn-success btn-sm" onclick="actionRegularization(${r.row_index},'Approved')">✓ Approve</button>
         <button class="btn btn-danger btn-sm" style="margin-left:6px" onclick="actionRegularization(${r.row_index},'Rejected')">✗ Reject</button>
