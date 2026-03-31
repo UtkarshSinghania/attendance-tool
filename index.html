@@ -379,6 +379,7 @@
         <div class="att-btns" id="att-btns-row">
           <button class="att-btn" id="btn-Present" onclick="markAttendance('Present')"><span class="att-icon">✅</span>Present</button>
           <button class="att-btn" id="btn-WFH" onclick="markAttendance('WFH')"><span class="att-icon">🏠</span>Work From Home</button>
+          <button class="att-btn" id="btn-Half Day" onclick="markAttendance('Half Day')"><span class="att-icon">½</span>Half Day</button>
           <button class="att-btn" id="btn-Absent" onclick="markAttendance('Absent')"><span class="att-icon">❌</span>Absent</button>
         </div>
         <p class="att-status-msg" id="att-msg"></p>
@@ -991,7 +992,7 @@ async function markAttendance(status) {
 }
 
 function highlightAttBtn(status) {
-  ["Present","WFH","Absent"].forEach(s => {
+  ["Present","WFH","Half Day","Absent"].forEach(s => {
     const b = document.getElementById("btn-" + s);
     if (b) b.className = "att-btn" + (s === status ? " selected-" + s : "");
   });
@@ -1611,7 +1612,7 @@ async function loadTeamCalendar() {
     return;
   }
 
-  const dateMap = tcData.dateMap || {};
+  const dateMap = tcData.calendar || {};
   const today   = new Date().toISOString().split("T")[0];
   const holMap  = {};
   holidayList.forEach(h => { const hd = h.date ? h.date.toString().split("T")[0] : ""; if (hd) holMap[hd] = h; });
