@@ -251,6 +251,13 @@
     .cal-day .day-num { font-size: 11px; }
   }
 
+  /* V3: Geo-fence location badges */
+  .loc-badge { display: inline-flex; align-items: center; gap: 3px; font-size: 10px; font-weight: 700; padding: 1px 7px; border-radius: 10px; margin-left: 5px; vertical-align: middle; }
+  .loc-office  { background: #EDFBF3; color: #1A6644; border: 1px solid #B7E8CB; }
+  .loc-remote  { background: #FFF3E0; color: #C14E00; border: 1px solid #FFCC80; }
+  .loc-unknown { background: #F3F4F6; color: #6B7280; border: 1px solid #E5E7EB; }
+  #geo-status-msg { font-size: 12px; color: var(--text-muted); margin-top: 8px; min-height: 18px; }
+
   /* V3: Half Day */
   .att-btn.selected-Half\ Day { background: #FFF8EC; border-color: #C4A35A; color: #7A5C00; }
   .pill-half { background: #FFF8EC; color: #7A5C00; border: 1px solid #E3C383; }
@@ -383,6 +390,7 @@
           <button class="att-btn" id="btn-Absent" onclick="markAttendance('Absent')"><span class="att-icon">❌</span>Absent</button>
         </div>
         <p class="att-status-msg" id="att-msg"></p>
+        <p id="geo-status-msg"></p>
       </div>
       <div class="card">
         <div class="card-header"><h3>Attendance History</h3><p>Your recent attendance log</p></div>
@@ -419,6 +427,7 @@
           <div class="stat-card"><div class="stat-num" id="sum-leave">—</div><div class="stat-label">On Leave</div></div>
           <div class="stat-card"><div class="stat-num" id="sum-total">—</div><div class="stat-label">Total Days</div></div>
           <div class="stat-card" style="border-color:#FFCC80"><div class="stat-num" id="sum-late" style="color:#C14E00">—</div><div class="stat-label" style="color:#C14E00">⏰ Late</div></div>
+          <div class="stat-card" style="border-color:#FFCC80"><div class="stat-num" id="sum-remote" style="color:#C14E00">—</div><div class="stat-label" style="color:#C14E00">🏠 Remote</div></div>
         </div>
         <div class="cal-grid" id="sum-cal-grid"></div>
         <div class="cal-legend">
@@ -988,11 +997,37 @@ async function confirmTakeOH() {
 }
 
 async function markAttendance(status) {
-  const data = await api({ action:"markAttendance", emp_id:currentUser.emp_id, status, email:currentUser.email });
-  const msg  = document.getElementById("att-msg");
+  const msg    = document.getElementById("att-msg");
+  const geoMsg = document.getElementById("geo-status-msg");
+  msg.textContent = "⏳ Marking attendance…";
+  geoMsg.textContent = "";
+
+  // Only capture location for Present / WFH / Half Day
+  const geoStatuses = ["Present", "WFH", "Half Day"];
+  let lat = "", lng = "";
+
+  if (geoStatuses.includes(status) && navigator.geolocation) {
+    try {
+      const pos = await new Promise((resolve, reject) =>
+        navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 8000, maximumAge: 60000 })
+      );
+      lat = pos.coords.latitude;
+      lng = pos.coords.longitude;
+    } catch(e) {
+      // Permission denied or unavailable → lat/lng stays empty → backend tags as Unknown
+    }
+  }
+
+  const data = await api({ action:"markAttendance", emp_id:currentUser.emp_id, status, email:currentUser.email, lat, lng });
   if (data.success) {
     msg.textContent = `✅ Marked as ${status} for today.`;
     highlightAttBtn(status);
+    // Show location badge
+    if (data.location) {
+      const badgeMap = { "In Office":"📍 In Office · loc-office", "Remote":"🏠 Remote · loc-remote", "Unknown":"❓ Location Unknown · loc-unknown" };
+      const [label, cls] = (badgeMap[data.location] || "").split(" · ");
+      if (label) geoMsg.innerHTML = `<span class="loc-badge ${cls}">${label}</span>`;
+    }
     loadMyAttendance();
   } else {
     msg.textContent = "❌ " + (data.error || "Error marking attendance.");
@@ -1015,11 +1050,12 @@ async function loadMyAttendance() {
     return;
   }
   tbody.innerHTML = data.records.slice(0,30).map(r => {
-    const dateStr = String(r.date).split("T")[0];
+    const dateStr    = String(r.date).split("T")[0];
     const canHalfDay = (r.status === "Present" || r.status === "WFH");
+    const locBadge   = locationBadge(r.location, r.status);
     return `<tr>
       <td>${fmtDate(r.date)}</td>
-      <td>${statusPill(r.status)}${(r.status==="Present"||r.status==="WFH") ? lateBadge(r.marked_at) : ""}</td>
+      <td>${statusPill(r.status)}${(r.status==="Present"||r.status==="WFH"||r.status==="Half Day") ? lateBadge(r.marked_at) : ""}${locBadge}</td>
       <td>${fmtDateTime(r.marked_at)}</td>
       <td>${canHalfDay ? `<button class="half-day-btn" onclick="markHalfDay('${dateStr}')">½ Half Day</button>` : ""}</td>
     </tr>`;
@@ -1050,6 +1086,16 @@ async function loadMySummary() {
   document.getElementById("sum-leave").textContent   = (s.counts["On Leave"] || 0) + (s.counts["Optional Holiday"] || 0);
   document.getElementById("sum-total").textContent   = s.counts.Total || 0;
   document.getElementById("sum-late").textContent    = s.counts.Late || 0;
+
+  // Count remote days from attendance records for this month/year
+  const attData = await api({ action:"getAttendance", emp_id:currentUser.emp_id });
+  if (attData.success) {
+    const remote = (attData.records || []).filter(r => {
+      const d = new Date(r.date);
+      return r.location === "Remote" && d.getFullYear() === parseInt(year) && d.getMonth() + 1 === parseInt(month);
+    }).length;
+    document.getElementById("sum-remote").textContent = remote;
+  }
 
   renderCalendar("sum-cal-grid", parseInt(month), parseInt(year), s.days, holidayList);
 }
@@ -1300,7 +1346,7 @@ function renderAllAtt(records) {
     return `<tr${showLate ? ' style="background:#FFFBF5"' : ''}>
       <td style="font-weight:600">${r.name}</td>
       <td>${fmtDate(r.date)}</td>
-      <td>${statusPill(r.status)}${showLate ? lateBadge(r.marked_at) : ""}</td>
+      <td>${statusPill(r.status)}${showLate ? lateBadge(r.marked_at) : ""}${locationBadge(r.location, r.status)}</td>
       <td>${fmtDateTime(r.marked_at)}</td>
       <td><button class="btn btn-outline btn-sm" style="padding:4px 10px;font-size:11px" onclick="openCorrectionModal('${r.emp_id}','${escHtml(r.name)}','${dateStr}','${r.status}')">✏️</button></td>
     </tr>`;
@@ -1586,6 +1632,14 @@ function isLate(marked_at) {
 
 function lateBadge(marked_at) {
   return isLate(marked_at) ? '<span class="late-badge">⏰ Late</span>' : "";
+}
+
+function locationBadge(location, status) {
+  const geoStatuses = ["Present", "WFH", "Half Day"];
+  if (!location || !geoStatuses.includes(status)) return "";
+  if (location === "In Office")  return '<span class="loc-badge loc-office">📍 Office</span>';
+  if (location === "Remote")     return '<span class="loc-badge loc-remote">🏠 Remote</span>';
+  return '<span class="loc-badge loc-unknown">❓ Unknown</span>';
 }
 
 // ═══════════════════════════════════════════════════════════
