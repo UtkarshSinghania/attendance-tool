@@ -999,6 +999,21 @@ async function confirmTakeOH() {
 async function markAttendance(status) {
   const msg    = document.getElementById("att-msg");
   const geoMsg = document.getElementById("geo-status-msg");
+
+  // If already marked today, ask for confirmation before overwriting
+  if (todayStatus && todayStatus.attendance) {
+    const current = todayStatus.attendance.status;
+    if (current === status) {
+      msg.textContent = `ℹ️ Already marked as ${status} today.`;
+      return;
+    }
+    const confirmed = confirm(`You've already marked "${current}" today.\nChange it to "${status}"?`);
+    if (!confirmed) {
+      msg.textContent = "";
+      return;
+    }
+  }
+
   msg.textContent = "⏳ Marking attendance…";
   geoMsg.textContent = "";
 
@@ -1021,6 +1036,9 @@ async function markAttendance(status) {
   const data = await api({ action:"markAttendance", emp_id:currentUser.emp_id, status, email:currentUser.email, lat, lng });
   if (data.success) {
     msg.textContent = `✅ Marked as ${status} for today.`;
+    // Update in-memory todayStatus so a second click triggers confirmation, not double-write
+    if (!todayStatus) todayStatus = {};
+    todayStatus.attendance = { status, timestamp: new Date().toISOString() };
     highlightAttBtn(status);
     // Show location badge
     if (data.location) {
